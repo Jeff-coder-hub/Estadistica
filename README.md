@@ -1,3 +1,1 @@
-"# Estadtica"  
-"# Estadtica"  
-"# Estadtica"  
+Este repositorio contiene las pr谩cticas desarrolladas para el curso Sistematizaci贸n de M茅todos Estad铆sticos, incluyendo los archivos .qmd generados y ejecutados en RStudio. Aqu铆 se documenta el proceso completo de creaci贸n del proyecto, desde la configuraci贸n del entorno local hasta la vinculaci贸n del repositorio remoto en GitHub mediante Git. Cada carpeta y archivo refleja las actividades trabajadas en clase, con un enfoque en la reproducibilidad, la organizaci贸n y el control de versiones. El repositorio permite visualizar el c贸digo fuente, los resultados obtenidos y el historial de cambios realizado por el grupo durante el desarrollo de la pr谩ctica.
