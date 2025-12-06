@@ -1,0 +1,147 @@
+---
+title: "PC3-2
+author: "Jefferson M. Chacaltana"
+format: html
+editor: visual
+---
+
+## Cargar los paquetes
+
+```{r}
+install.packages("broom.helpers")
+install.packages("performance")
+```
+
+```{r}
+library(tidyverse)
+library(broom)
+library(here)
+library(rio)
+library(gtsummary)
+library(car)
+library(survival)
+library(performance)
+```
+
+## 1 Modelos univariados vs. multivariados
+
+El análisis univariado evalúa cada variable por separado.\
+El análisis multivariado ajusta todas las variables simultáneamente.
+
+------------------------------------------------------------------------
+
+## 2. Ejemplos de análisis univariado y multivariado en una regresión logística
+
+### 2.1 Importación del dataset para este ejercicio
+
+```{r}
+data_diabetes <- import(here("data", "diabetes.csv"))
+glimpse(data_diabetes)
+```
+
+### 2.2 Preparación de la variable dependiente
+
+Para este análisis se utilizará **historial_diabetes** como variable dependiente.
+
+```{r}
+data_diabetes <- data_diabetes %>%
+  mutate(historial_diabetes = as.factor(historial_diabetes))
+table(data_diabetes$historial_diabetes)
+```
+
+------------------------------------------------------------------------
+
+## 2.3 Análisis univariado
+
+A continuación se ajusta un modelo por cada predictor usando **tbl_uvregression()**.
+
+```{r}
+tabla_univariado <- tbl_uvregression(
+  data = data_diabetes,
+  y = historial_diabetes,
+  method = glm,
+  method.args = list(family = binomial),
+  exponentiate = TRUE
+)
+
+tabla_univariado
+```
+
+------------------------------------------------------------------------
+
+## 2.4 Análisis multivariado
+
+Ajuste del modelo logístico incluyendo todas las variables predictoras.
+
+```{r}
+modelo_multivariado <- glm(
+  historial_diabetes ~ num_embarazos + glucosa_2h + presion_sanguinea +
+                       pliegue_triceps + insulina_2h + imc + edad,
+  data = data_diabetes,
+  family = binomial
+)
+
+tabla_multivariado <- tbl_regression(modelo_multivariado, exponentiate = TRUE)
+tabla_multivariado
+```
+
+------------------------------------------------------------------------
+
+## 2.5 Evaluación de colinealidad
+
+```{r}
+vif(modelo_multivariado)
+```
+
+------------------------------------------------------------------------
+
+## 2.6 Interpretación automática de resultados
+
+```{r}
+# Univariado
+uni <- tidy(modelo_multivariado, exponentiate = TRUE, conf.int = TRUE)
+
+signif_res <- uni %>% filter(term != "(Intercept)" & p.value < 0.05)
+
+if(nrow(signif_res) == 0){
+  cat("No se encontraron predictores estadísticamente significativos en el análisis ajustado.\n")
+} else {
+  cat("Predictores significativos en el modelo multivariado:\n")
+  for(i in seq_len(nrow(signif_res))){
+    r <- signif_res[i,]
+    cat(paste0("- ", r$term, ": OR = ", round(r$estimate,2),
+               " (IC95% ", round(r$conf.low,2), "-", round(r$conf.high,2),
+               "), p = ", signif(r$p.value,3), "\n"))
+  }
+}
+```
+
+------------------------------------------------------------------------
+
+## 2.7 Modelo final
+
+A continuación se listan únicamente las variables significativas:
+
+```{r}
+if(nrow(signif_res) == 0){
+  cat("El modelo final no contiene variables significativas.\n")
+} else {
+  cat("Variables retenidas en el modelo final:\n")
+  print(signif_res$term)
+}
+```
+
+------------------------------------------------------------------------
+
+## 3 Reporte del análisis univariado y multivariado
+
+-   El análisis univariado identifica asociaciones individuales.\
+-   El análisis multivariado determina asociaciones ajustando por todos los predictores.\
+-   Se presentan OR, IC95% y valores p.
+
+------------------------------------------------------------------------
+
+## Conclusión
+
+El análisis univariado y multivariado aplicado a la base `diabetes.csv` permite identificar qué variables se asocian con la presencia de **historial de diabetes**.\
+La interpretación final depende de los predictores significativos obtenidos en el análisis ajustado.
