@@ -1,0 +1,256 @@
+---
+title: "PC2-1"
+author: "Jefferson M. Chacaltana"
+format: html
+editor: visual
+---
+
+## Semana 5: proceso para crear gráficos descriptivos. 1.Descarga y activacion de paquetes
+
+```{r}
+install.packages("tidyverse")
+install.packages("rio")
+install.packages("here")
+install.packages("gridExtra")
+install.packages("GGally")
+install.packages("forcats")
+library(tidyverse)
+library(rio)
+library(here)
+library(gridExtra) 
+library(GGally) 
+library(forcats)
+```
+
+## 2.Importacion de base de datos grupo 09
+
+```{r}
+data_diabetes = import(here("data", "diabetes.csv"))
+str(data_diabetes)
+```
+
+Conversion a factores
+
+```{r}
+data_diabetes1 <- data_diabetes |> 
+  mutate_if(is.character, as.factor)
+str(data_diabetes1)
+```
+
+## 3.Grafico de barras
+
+```{r}
+data_diabetes1 |>  
+  ggplot(aes(x = fct_infreq(diabetes_5a))) +
+  geom_bar() +
+  labs(y = "Frecuencia", x = "presencia de diabetes")
+```
+
+## 4.histogramas
+
+```{r}
+data_diabetes1 |> 
+  ggplot(aes(x = imc)) +
+  geom_histogram(color = "red", 
+                 fill = "cornflowerblue") +
+  labs(y = "Frecuencia", 
+       x = "Índice de Masa Corporal (IMC)") +
+  theme_minimal()
+```
+
+```{r}
+data_diabetes1 |>
+  filter(!is.na(glucosa_2h) & !is.na(diabetes_5a)) |>
+  
+  ggplot(aes(x = glucosa_2h)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 20, 
+                 color = "blue", 
+                 fill = "red") + 
+  facet_wrap(~ diabetes_5a, ncol = 1) + 
+  labs(
+    x = "Glucosa a las 2h", 
+    y = "Densidad / Proporción") +
+  theme_minimal() +
+  ggtitle("Distribución de Glucosa por Diagnóstico de Diabetes")
+```
+
+## 5.grafico de cajas y bigotes
+
+```{r}
+box_imc = boxplot(data_diabetes1$imc,
+                  ylab = "Índice de Masa Corporal (IMC)",
+                  horizontal = TRUE,
+                  col = "red",
+                  main = "Boxplot de IMC")
+```
+
+```{r}
+data_diabetes1 |>
+  mutate(rango_edad = case_when(
+    edad < 30 ~ "Joven (<30)",
+    edad < 50 ~ "Adulto (30-49)", # Simplificado: ya se filtró <30
+    edad >= 50 ~ "Mayor (50+)",
+    TRUE ~ "No Asignado" 
+  )) |>
+  mutate(rango_edad = factor(rango_edad, levels = c("Joven (<30)", "Adulto (30-49)", "Mayor (50+)", "No Asignado"))) |>
+  filter(!is.na(glucosa_2h) & !is.na(diabetes_5a) & !is.na(rango_edad)) |>
+  ggplot(aes(x = diabetes_5a, y = glucosa_2h, fill = rango_edad)) +
+  geom_boxplot() + 
+  scale_fill_brewer(palette = "Set1") +
+  labs(y = "Glucosa a las 2h", 
+       x = "¿Diagnóstico de Diabetes a los 5 años?", 
+       fill = "Rango de Edad") + 
+  theme_minimal() +
+  ggtitle("Distribución de Glucosa por Diabetes y Rango de Edad")
+```
+
+## 6.Visualizando variables categóricas *versus* categóricas
+
+```{r}
+data_diabetes1 |>
+  mutate(rango_edad = case_when(
+    edad < 30 ~ "Menos de 30",
+    edad < 50 ~ "30 a 49 años", 
+    edad >= 50 ~ "50 o más años",
+    TRUE ~ "NA"
+  )) |>
+  mutate(rango_edad = factor(rango_edad, levels = c("Menos de 30", "30 a 49 años", "50 o más años", "NA"))) |>
+  
+  ggplot(aes(x = rango_edad, fill = diabetes_5a)) +
+  geom_bar(position = "dodge") +
+  scale_fill_manual(values = c("positivo" = "salmon", "negativo" = "blue")) +
+  labs(
+    y = "Frecuencia de Pacientes",
+    x = "Rango de Edad",
+    fill = "¿Diabetes a los 5 años?"
+  ) +
+  theme_minimal() +
+  ggtitle("Diagnóstico de Diabetes por Rango de Edad")
+```
+
+## 7.Visualizando distribución de variables continuas *versus* categóricas
+
+```{r}
+data_diabetes1 |>
+  mutate(rango_imc = case_when(
+    imc < 25.0 ~ "Peso Normal",
+    imc < 30.0 ~ "Sobrepeso", # Simplificado: ya se filtró <25.0
+    imc >= 30.0 ~ "Obesidad",
+    TRUE ~ "NA"
+  )) |>
+  mutate(rango_imc = factor(rango_imc, levels = c("Peso Normal", "Sobrepeso", "Obesidad", "NA"))) |>
+  
+  filter(!is.na(diabetes_5a) & !is.na(rango_imc) & !is.na(glucosa_2h)) |>
+  group_by(diabetes_5a, rango_imc) |>
+  summarise(
+    promedio_glucosa = mean(glucosa_2h, na.rm = TRUE),
+    de_glucosa = sd(glucosa_2h, na.rm = TRUE),
+    .groups = 'drop'
+  ) |>
+  ggplot(aes(x = diabetes_5a, y = promedio_glucosa, fill = rango_imc)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_errorbar(aes(ymin = promedio_glucosa - de_glucosa, 
+                    ymax = promedio_glucosa + de_glucosa), 
+                width = 0.5, 
+                position = position_dodge(0.9)) +
+  scale_fill_manual(values = c("Peso Normal" = "mediumseagreen", 
+                               "Sobrepeso" = "coral1",
+                               "Obesidad" = "firebrick")) +
+  labs(
+    y = "Promedio de Glucosa a las 2h",
+    x = "¿Diagnóstico de Diabetes a los 5 años?",
+    fill = "Rango IMC"
+  ) +
+  theme_minimal() +
+  ggtitle("Glucosa Promedio (DE) por Diabetes e IMC")
+```
+
+## 7.Grafico de dispersion
+
+```{r}
+data_diabetes1 |>
+  filter(!is.na(glucosa_2h) & !is.na(insulina_2h)) |>
+  ggplot(aes(x = glucosa_2h, y = insulina_2h)) +
+  geom_point() +
+  geom_smooth(method = "loess", se = TRUE, color = "blue", fill = "lightgray") + 
+  labs(
+    x = "Glucosa a las 2h", 
+    y = "Insulina a las 2h") +
+  theme_minimal() +
+  ggtitle("Relación entre Glucosa e Insulina (LOESS)")
+```
+
+## Semana 6: Cálculo de tamaño de muestra
+
+## 1.Descarga y activacion de paquetes
+
+```{r}
+install.packages("epiR")
+library(epiR)
+```
+
+## 1.Cálculo de muestra para un estudio de prevalencia (survey)
+
+Para el cálculo de muestra de un estudio de prevalencia es necesaria la información sobre la prevalencia esperada (`Py`) y, opcionalmente, el tamaño de la población.
+
+Caso 1: Un grupo de investigadores desea determinar la frecuencia de anemia en niños menores de 5 años de edad en el departamento de Ica. Un estudio previo en Arequipa, realizado en 106 499 niños, ha determinado que la prevalencia de anemia fue de 18.7 % (DOI: 10.5867/medwave.2020.07.8004).
+
+¿Cuál sería el tamaño de muestra necesario?
+
+```{r}
+epi.sssimpleestb(N = NA, Py = 0.187, 
+                 epsilon = 0.20, error = "relative", 
+                 se = 1, sp = 1, 
+                 nfractional = FALSE, conf.level = 0.95)
+```
+
+Es necesario 418 participantes.
+
+## 2. Cálculo de muestra para un estudio de casos y controles
+
+Caso 2. Un investigador desea evaluar la asociación entre la exposición al humo del tabaco y el riesgo de sufrir un accidente cerebrovascular. Para ello, se comparará la frecuencia de exposición activa al humo de cigarrillo entre dos grupos: una muestra de pacientes diagnosticados por primera vez con accidente cerebrovascular isquémico (casos) y una muestra de pacientes sin antecedente de accidente cerebrovascular (controles).
+
+Se plantea que el número de casos y controles será igual. El estudio busca detectar una razón de momios (odds ratio) de 1.85. Además, un estudio previo reportó que la prevalencia de exposición al humo de tabaco en los controles es del 22.4% (DOI: 10.1016/j.eclinm.2024.102515).
+
+¿Cuál sería el tamaño de muestra necesario de casos y controles?
+
+```{r}
+epi.sscc(OR = 1.85, p1 = NA, 
+         p0 = 0.224, n = NA, 
+         power = 0.80, r = 1, 
+         phi.coef = 0, design = 1, 
+         sided.test = 2, conf.level = 0.95, 
+         method = "unmatched", nfractional = FALSE, 
+         fleiss = FALSE)
+```
+
+Es necesario 207 casos y 207 controles.
+
+## 3. Cálculo de muestra para un estudio de cohorte
+
+Caso 3. Un grupo de investigadores desea evaluar el efecto de la anemia sobre el riesgo de mortalidad en pacientes con trasplante renal. Para ello, reclutarán participantes del Hospital Regional de Ica y los seguirán durante 4 años para identificar los casos de fallecimiento. Los investigadores buscan tener un 80% de poder estadístico para detectar un riesgo de muerte 1.69 veces mayor en pacientes con anemia, en comparación con aquellos sin anemia ([DOI: 10.1111/j.1600-6143.2006.01727.x](https://doi.org/10.1111/j.1600-6143.2006.01727.x)), utilizando un nivel de significancia del 0.05. Un estudio previo reportó que, entre los pacientes con trasplante renal sin anemia, fallecieron 60 de 621.
+
+**Pregunta:** ¿Cuál sería el tamaño de muestra necesario para los grupos de expuestos (con anemia) y no expuestos (sin anemia)?
+
+```{r}
+epi.sscohortt(irexp1 = 58/317, irexp0 = 60/621, FT = 4, n = NA, 
+              power = 0.80, r = 1, design = 1, sided.test = 2, 
+              nfractional = FALSE, conf.level = 0.95)
+```
+
+Es necesario 177 de expuestos y 177 no expuestos.
+
+## 4. Cálculo de poder estadístico
+
+**Caso 4.** Un grupo de investigadores desea evaluar el efecto de la anemia sobre el riesgo de mortalidad en pacientes con trasplante renal. Para ello, reclutarán participantes del Hospital Regional de Ica y los seguirán durante 4 años para identificar los casos de fallecimiento. Se planea incluir a 150 pacientes con trasplante renal y anemia y a 150 pacientes con trasplante renal sin anemia, con el objetivo de detectar un riesgo de muerte asociado a la anemia de 1.69 ([DOI: 10.1111/j.1600-6143.2006.01727.x](https://doi.org/10.1111/j.1600-6143.2006.01727.x)), utilizando un nivel de significancia de 0.05. Un estudio previo reportó que, entre los pacientes con trasplante renal **sin** anemia, fallecieron 60 de 621.
+
+Pregunta: ¿Cuál es el poder estadístico con el tamaño de muestra propuesto para cada grupo?
+
+```{r}
+epi.sscohortt(irexp1 = 58/317, irexp0 = 60/621, FT = 4, n = 300, 
+              power = NA, r = 1, design = 1, sided.test = 2, 
+              nfractional = FALSE, conf.level = 0.95)
+```
+
+Tendremos un poder estadístico de 73% para recharazar correctamente la hipótesis nula.

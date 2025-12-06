@@ -1,0 +1,101 @@
+---
+title: "PC1-3"
+author: "Jefferson M. Chacaltana"
+format: html
+editor: visual
+---
+
+## Descarga de paquetes
+
+```{r}
+install.packages("finalfit")
+install.packages("flextable")
+install.packages("gtsummary")
+```
+
+## Activacion de paquetes
+
+```{r}
+library(tidyverse)
+library(here)
+library(rio)
+library(gtsummary) 
+library(finalfit) 
+library(flextable) 
+```
+
+## Importar base de datos
+
+```{r}
+data_diabetes = import(here("data", "diabetes.csv"))
+```
+
+```{r}
+str(data_diabetes)
+```
+
+## Analisis descriptivo
+
+```{r}
+table(data_diabetes$diabetes_5a, useNA = "ifany")
+```
+
+```{r}
+prop.table(table(data_diabetes$diabetes_5a, useNA = "ifany"))
+```
+
+```{r}
+summary(data_diabetes)
+```
+
+```{r}
+data_diabetes |>
+  group_by(glucosa_2h, diabetes_5a) |>
+  summarise(
+    n_observ = n(),
+    porcentaje = (n_observ / nrow(data_diabetes)) * 100
+  )
+```
+
+## Tabla 1
+
+```{r}
+data_diabetes |>
+  select(num_embarazos, glucosa_2h, presion_sanguinea, pliegue_triceps, insulina_2h, imc, historial_diabetes, edad, diabetes_5a) |>
+  tbl_summary()
+```
+
+Tabla en base a Diabetes
+
+```{r}
+data_diabetes |>
+  select(num_embarazos, glucosa_2h, presion_sanguinea, pliegue_triceps, insulina_2h, imc, historial_diabetes, edad, diabetes_5a) |>
+  tbl_summary( by = diabetes_5a)
+```
+
+Traduccion al español
+
+```{r}
+theme_gtsummary_language(language = "es") 
+theme_gtsummary_journal(journal = "jama")
+```
+
+```{r}
+data_diabetes_0 = data_diabetes |>
+  mutate(
+    edad = ff_label(edad, "Edad (años)"),
+    diabetes_5a = as.factor(diabetes_5a) |>
+      fct_relevel("positivo", "negativo") |> 
+      ff_label("Diagnóstico de diabetes"),
+    glucosa_2h = ff_label(glucosa_2h, "Glucosa a 2h (mg/dL)"),
+    presion_sanguinea = ff_label(presion_sanguinea, "Presión arterial (mmHg)"),
+    insulina_2h = ff_label(insulina_2h, "Nivel de insulina a 2h"),
+    imc = ff_label(imc, "Índice de Masa Corporal (IMC)")
+  )
+```
+
+```{r}
+data_diabetes_0 |>
+  select(num_embarazos, glucosa_2h, presion_sanguinea, pliegue_triceps, insulina_2h, imc, historial_diabetes, edad, diabetes_5a) |>
+  tbl_summary( by = diabetes_5a)
+```

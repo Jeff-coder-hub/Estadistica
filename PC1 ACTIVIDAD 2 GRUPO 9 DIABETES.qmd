@@ -1,0 +1,96 @@
+---
+title: "PC1-2"
+author: "Jefferson Machaca Chacaltana"
+format: html
+editor: visual
+---
+
+## Instalacion y activacion de paquetes:
+
+```{r}
+install.packages("tidyverse")
+install.packages("janitor")
+```
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(rio)
+library(here)
+```
+
+## Importacion de base de datos grupo 09 "diabetes.csv":
+
+```{r}
+data_sangre = import(here("data", "diabetes.csv"))
+```
+
+## Conversion a formato Tibble:
+
+```{r}
+data_sangre_1 = as_tibble(data_sangre)
+class(data_sangre_1)
+```
+
+## Analisis:
+
+```{r}
+dim(data_sangre_1)
+str(data_sangre_1)
+glimpse(data_sangre_1)
+```
+
+## Limpieza de datos:
+
+```{r}
+data_sangre_2 = clean_names(data_sangre_1)
+names(data_sangre_2)
+```
+
+## Transforamación:
+
+```{r}
+data_sangre_2 = mutate_if(data_sangre_2, is.character, list(~na_if(.,""))) #conversion de datos NA 
+```
+
+```{r}
+head(data_sangre_2)
+```
+
+## Transforamación a factores:
+
+```{r}
+table(data_sangre_2$glucosa_2h)
+```
+
+```{r}
+data_sangre_2 <- data_sangre_2 |> 
+  mutate(glucosa_2h = factor(glucosa_2h,
+                                  levels = c("Alto", "Medio", "Bajo"),
+                                  labels = c("Alto", "Medio", "Bajo")))
+```
+
+```{r}
+class(data_sangre_2$glucosa_2h)
+levels(data_sangre_2$glucosa_2h)
+```
+
+## Colapso:
+
+```{r}
+data_sangre_2 |> count(presion_sanguinea)
+```
+
+```{r}
+data_sangre_2 <- data_sangre_2 |>
+  mutate(
+    presion_sanguinea = case_when(
+      presion_sanguinea %in% c("presion_sanguinea 0-6", "presion_sanguinea 7") ~ "presion_sanguinea 0-7",
+      TRUE ~ "presion_sanguinea 8-10"
+    )
+  )
+```
+
+```{r}
+data_sangre_2 |> count(presion_sanguinea)
+```

@@ -1,0 +1,127 @@
+---
+title: "PC3-1"
+author: "Jefferson M. Chacaltana"
+format: html
+editor: visual
+---
+
+# Descarga y activación de paquetes
+
+```{r}
+library(tidyverse)
+library(here)
+library(rio)
+library(gtsummary)
+library(car)
+library(broom)
+library(pROC)
+```
+
+# Base de datos grupo 09 "diabetes.csv"
+
+```{r}
+data_diabetes <- import(here("data", "diabetes.csv"))
+glimpse(data_diabetes)
+summary(data_diabetes)
+```
+
+# Preparación de la variable dependiente
+
+```{r}
+# La variable dependiente es 'diabetes_5a', con valores 'positivo' y 'negativo'.
+# Se recodifica como factor binario (1 = positivo, 0 = negativo).
+
+data_diabetes <- data_diabetes %>%
+  mutate(diabetes_5a = ifelse(diabetes_5a == "positivo", 1, 0)) %>%
+  mutate(diabetes_5a = as.factor(diabetes_5a))
+
+table(data_diabetes$diabetes_5a)
+```
+
+```{r}
+data_diabetes_limpia <- data_diabetes %>%
+  mutate(
+    presion_sanguinea = na_if(presion_sanguinea, 0),
+    pliegue_triceps = na_if(pliegue_triceps, 0),
+    insulina_2h = na_if(insulina_2h, 0),
+    imc = na_if(imc, 0)
+  )
+```
+
+# pruebas inferenciales
+
+-   **Hipótesis Nula** H0: No hay asociación entre `historial_diabetes` y `diabetes_5a`. Son independientes.
+
+-   **Hipótesis Alternativa** H1: Sí hay una asociación.
+
+```{r}
+# Prueba Chi-cuadrado
+tabla_historial <- table(data_diabetes_limpia$historial_diabetes,
+                        data_diabetes_limpia$diabetes_5a)
+
+print(tabla_historial)
+chisq.test(tabla_historial)
+```
+
+El análisis mostró un **p-valor de 0.2929**, superior al nivel de significancia de 0.05, por lo que **no se rechaza la hipótesis nula**. Esto indica que **no existe una asociación estadísticamente significativa entre el historial de diabetes y la diabetes a los 5 años**.
+
+# Modelo de regresión logística binaria
+
+```{r}
+# Selección de variables predictoras
+modelo_logistico <- glm(diabetes_5a ~ num_embarazos + glucosa_2h + presion_sanguinea +
+                          pliegue_triceps + insulina_2h + imc +
+                          historial_diabetes + edad,
+                        data = data_diabetes_limpia, 
+                   
+                   family = binomial(link = "logit"))
+
+# Resumen del modelo
+summary(modelo_logistico)
+
+# Obtener Odds Ratios (OR) e intervalos de confianza del 95%
+resultado_or <- tidy(modelo_logistico, exponentiate = TRUE, conf.int = TRUE)
+resultado_or %>%
+  select(term, estimate, conf.low, conf.high, p.value) %>%
+  gtsummary::as_tibble()
+```
+
+# Evaluación del modelo
+
+```{r}
+# 1. Creamos un dataframe que solo contenga los casos completos
+# (Este dataframe tendrá 392 filas, igual que las predicciones)
+data_evaluacion <- na.omit(data_diabetes_limpia)
+
+# 2. Ahora, usamos "data_evaluacion" para todo el bloque
+
+# Predicciones
+# (predict() genera 392 resultados, y data_evaluacion tiene 392 filas. ¡Coinciden!)
+data_evaluacion$prob_predicha <- predict(modelo_logistico, type = "response")
+data_evaluacion$pred_clase <- ifelse(data_evaluacion$prob_predicha >= 0.5, 1, 0)
+
+# Matriz de confusión
+table(Observado = data_evaluacion$diabetes_5a, Predicho = data_evaluacion$pred_clase)
+
+# Curva ROC y AUC
+roc_obj <- roc(as.numeric(as.character(data_evaluacion$diabetes_5a)), 
+               data_evaluacion$prob_predicha)
+auc_val <- auc(roc_obj)
+auc_val
+plot(roc_obj, main = paste("Curva ROC - AUC =", round(auc_val, 3)))
+```
+
+# Interpretación de resultados
+
+La regresión logística binaria permite estimar la probabilidad de presentar **diabetes a los 5 años** en función de diversas variables clínicas y demográficas.
+
+Cada coeficiente del modelo indica el efecto de la variable independiente sobre la probabilidad de tener diabetes, manteniendo constantes las demás variables.
+
+-   Un **OR (odds ratio)** \> 1 implica mayor probabilidad de diabetes a medida que aumenta la variable.\
+-   Un **OR \< 1** implica un efecto protector o menor probabilidad.\
+-   Un valor **p \< 0.05** indica significancia estadística.
+
+**interpretación:**\
+\> La variable *glucosa_2h* presentó un OR = **1.039** (IC95%: **1.028–1.051**; p = **\[3.242069e-11\]**), lo que sugiere que por cada unidad adicional de glucosa \[en el test de 2h\], los **odds** de presentar diabetes aumentan en un **3.9%**.
+
+El valor del AUC obtenido fue **0.862**, lo que indica, lo que indica un poder de discriminación (débil, aceptable, bueno o excelente) según la escala estándar.

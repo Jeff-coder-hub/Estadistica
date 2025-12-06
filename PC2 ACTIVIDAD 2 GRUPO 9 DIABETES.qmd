@@ -1,0 +1,65 @@
+---
+title: "PC2-2"
+author: "Jefferson M.Chacaltana"
+format: html
+editor: visual
+---
+
+## Descarga y activacion de paquetes
+
+```{r}
+library(tidyverse)
+library(here)
+library(rio)
+library(gtsummary)
+library(car)
+```
+
+## Base de datos grupo 09 "diabetes.csv"
+
+```{r}
+data_diabetes = import(here("data", "diabetes.csv"))
+```
+
+## Evaluacion de normalidad
+
+se evalua la normalidad de la variable "glucosa_2h"
+
+H0: Los datos de glucosa_2h siguen una distribucion normal
+
+H1:Los datos de glucosa_2h no siguen una distribucion normal
+
+```{r}
+shapiro.test(data_diabetes$glucosa_2h)
+```
+
+El P Valor es menor a 0.05, por lo que se rechaza la H0 y se acepta H1, Los datos de glucosa_2h no siguen una distribucion normal
+
+Se evalua la normalidad de la variable "presion_sanguinea"
+
+H0: Los datos de presion_sanguinea siguen una distribucion normal
+
+H1:Los datos de presion_sanguinea no siguen una distribucion normal
+
+```{r}
+shapiro.test(data_diabetes$presion_sanguinea)
+```
+
+El P Valor es menor a 0.05, por lo que se rechaza la H0 y se acepta H1, Los datos de presion_sanguinea no siguen una distribucion normal
+
+## Regresion lineal simple
+
+```{r}
+modelo_diabetes <- lm(glucosa_2h ~ imc, data = data_diabetes)
+summary(modelo_diabetes)
+
+ggplot(data = data_diabetes, aes(x = imc, y = glucosa_2h)) +
+  geom_point(color = "darkgreen", alpha = 0.7) +
+  geom_smooth(method = "lm", se = TRUE, color = "red") +
+  labs(
+    title = "Relación entre IMC y Glucosa a las 2 horas",
+    x = "Índice de Masa Corporal (IMC)",
+    y = "Glucosa a las 2 horas (mg/dL)"
+  ) +
+  theme_minimal()
+```

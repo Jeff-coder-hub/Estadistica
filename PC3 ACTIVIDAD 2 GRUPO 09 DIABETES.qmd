@@ -1,0 +1,127 @@
+---
+title: "PC3-2"
+author: "Jefferson M. Chacaltana"
+format: html
+editor: visual
+---
+
+# 1 activación de paquetes
+
+```{r}
+install.packages("broom.helpers")
+install.packages("performance")
+```
+
+```{r}
+library(tidyverse)
+library(broom)
+library(here)
+library(rio)
+library(gtsummary)
+library(car)
+library(survival)
+library(performance)
+library(broom.helpers)
+```
+
+# 2.1 Base de datos grupo 09 "diabetes.csv"
+
+```{r}
+data_diabetes <- import(here("data", "diabetes.csv"))
+glimpse(data_diabetes)
+```
+
+# 2.2 Preparación de la variable dependiente
+
+La variable dependiente utilizada fue `historial_diabetes_bin`, que indica si la persona presenta o no historial de diabetes.
+
+```{r}
+data_diabetes <- data_diabetes %>%
+  mutate(
+    historial_diabetes_bin = ifelse(historial_diabetes >= 0.5, 1, 0),
+    historial_diabetes_bin = factor(historial_diabetes_bin, levels = c(0,1))
+  )
+
+table(data_diabetes$historial_diabetes_bin)
+```
+
+# 2.3 Análisis univariado (no ajustado)
+
+En esta sección se ajusta un modelo por cada predictor para evaluar si tiene asociación individual con el historial de diabetes.
+
+```{r}
+tabla_univariado <- data_diabetes %>%
+  tbl_uvregression(
+    y = historial_diabetes_bin,
+    method = glm,
+    method.args = list(family = binomial),
+    exponentiate = TRUE
+  )
+
+tabla_univariado
+```
+
+# 2.4 Análisis multivariado (ajustado)
+
+Aquí se ajusta un modelo que incluye todas las variables al mismo tiempo para evaluar cuáles mantienen su efecto tras el ajuste.
+
+```{r}
+modelo_multivariado <- glm(
+  historial_diabetes_bin ~ num_embarazos + glucosa_2h + presion_sanguinea +
+                       pliegue_triceps + insulina_2h + imc + edad,
+  data = data_diabetes,
+  family = binomial
+)
+
+tabla_multivariado <- tbl_regression(
+  modelo_multivariado,
+  exponentiate = TRUE
+)
+
+tabla_multivariado
+```
+
+# 2.5 Evaluación de colinealidad
+
+```{r}
+vif(modelo_multivariado)
+```
+
+Todos los valores de VIF fueron menores a 5, por lo que no se evidencian problemas de colinealidad entre las variables del modelo multivariado
+
+# 2.6 Interpretación
+
+En el análisis univariado, se evalúa cada predictor por separado para determinar si tiene asociación con **historial de diabetes**.\
+Los predictores con valores p menores a 0.05 se consideran estadísticamente significativos.
+
+Para el modelo multivariado, se ajustan todas las variables simultáneamente.\
+Esto permite ver cuáles predictores mantienen su efecto después de ajustar por las demás variables.
+
+-   Un **OR mayor a 1** indica mayor probabilidad del evento.
+-   Un **OR menor a 1** indica menor probabilidad.
+-   Si el **IC95% incluye 1**, la asociación no es significativa.
+
+Los resultados deben interpretarse revisando principalmente el OR, el intervalo de confianza y el valor p.
+
+### Interpretación de los resultados:
+
+En el análisis univariado ninguna variable mostró un valor p \< 0.05, por lo que no se evidenció asociación con el historial de diabetes.
+
+En el modelo multivariado tampoco se identificaron predictores significativos después del ajuste.
+
+En conjunto, ninguna variable cumple criterios para formar un modelo final.
+
+# 2.7 Tabla combinada
+
+```{r}
+tabla_final <- tbl_merge(
+  tbls = list(tabla_univariado, tabla_multivariado),
+  tab_spanner = c("Univariado", "Multivariado")
+)
+
+tabla_final
+```
+
+# Conclusión
+
+En este análisis no se encontraron predictores significativos del historial de diabetes, ni en el modelo univariado ni en el modelo ajustado.

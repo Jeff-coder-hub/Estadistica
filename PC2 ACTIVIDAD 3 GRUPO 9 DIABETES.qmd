@@ -1,0 +1,104 @@
+---
+title: "Machaca_Jefferson_Grupo_09"
+---
+
+
+```{r}
+
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(car)
+library(here)
+library(rio)
+```
+
+## 1. Importación y Limpieza
+```{r}
+data_diabetes = import(here("data", "diabetes.csv"))
+```
+
+```{r}
+diabetes <- read.csv("diabetes.csv")
+diabetes_clean <- diabetes %>%
+  filter(!is.na(glucosa_2h) & !is.na(imc) & !is.na(edad)) %>%
+  mutate(
+    glucosa_2h = as.numeric(glucosa_2h),
+    imc = as.numeric(imc),
+    edad = as.numeric(edad),
+    num_embarazos = as.numeric(num_embarazos),
+    diabetes_num = ifelse(diabetes_5a == "positivo", 1, 0)
+  )
+cat("Datos limpios:", nrow(diabetes_clean), "filas\n")
+```
+
+## 2. Análisis Descriptivo
+
+```{r}
+ggplot(diabetes_clean, aes(x = glucosa_2h)) +
+  geom_histogram(fill = "blue", alpha = 0.7, bins = 20) +
+  labs(title = "Distribución de Glucosa")
+```
+
+## 3. Prueba T
+
+```{r}
+t_test <- t.test(glucosa_2h ~ diabetes_5a, data = diabetes_clean)
+print(t_test)
+```
+
+## 4. ANOVA Una Vía
+
+```{r}
+diabetes_clean <- diabetes_clean %>%
+  mutate(emb_cat = ifelse(num_embarazos <= 3, "1-3", "4+"))
+anova_result <- aov(edad ~ emb_cat, data = diabetes_clean)
+print(summary(anova_result))
+
+```
+
+## 5. Regresión Lineal Simple
+
+```{r}
+modelo <- lm(glucosa_2h ~ imc, data = diabetes_clean)
+print(summary(modelo))
+
+# INTERPRETACIÓN REQUERIDA (requisito a)
+cat("\n--- INTERPRETACIÓN REGRESIÓN LINEAL ---\n")
+cat("• Coeficiente IMC:", round(coef(modelo)[2], 3), "\n")
+cat("• Por cada unidad de IMC, glucosa aumenta", round(coef(modelo)[2], 2), "mg/dL\n")
+cat("• R²:", round(summary(modelo)$r.squared, 3), "→ IMC explica", 
+    round(summary(modelo)$r.squared * 100, 1), "% de variabilidad glucosa\n")
+cat("• Significancia:", ifelse(summary(modelo)$coefficients[2,4] < 0.05, 
+    "SIGNIFICATIVO (p < 0.05)", "No significativo"), "\n")
+```
+
+## 6. Pruebas de Bondad de Ajuste
+
+```{r}
+# PRUEBAS DE BONDAD DE AJUSTE
+shapiro_test <- shapiro.test(residuals(modelo))
+
+cat("Shapiro-Wilk p-value:", round(shapiro_test$p.value, 4), "\n")
+```
+
+## 7. Regresión Logística - CORREGIDO
+
+```{r}
+diabetes_logistic <- diabetes_clean %>% filter(!is.na(glucosa_2h) & !is.na(imc))
+modelo_logistico <- glm(diabetes_num ~ glucosa_2h + imc, data = diabetes_logistic, family = binomial)
+print(summary(modelo_logistico))
+
+# INTERPRETACIÓN REQUERIDA (requisito a)
+cat("\n--- INTERPRETACIÓN REGRESIÓN LOGÍSTICA ---\n")
+cat("• Odds Ratio Glucosa:", round(exp(coef(modelo_logistico)[2]), 3), "\n")
+cat("• Cada mg/dL de glucosa aumenta probabilidad diabetes", 
+    round((exp(coef(modelo_logistico)[2])-1)*100, 1), "%\n")
+
+predicciones <- predict(modelo_logistico, type = "response")
+predicciones_bin <- ifelse(predicciones > 0.5, 1, 0)
+matriz_confusion <- table(Real = diabetes_logistic$diabetes_num, Predicho = predicciones_bin)
+exactitud <- sum(diabetes_logistic$diabetes_num == predicciones_bin) / nrow(diabetes_logistic)
+cat("Exactitud:", round(exactitud, 3))
+```
+

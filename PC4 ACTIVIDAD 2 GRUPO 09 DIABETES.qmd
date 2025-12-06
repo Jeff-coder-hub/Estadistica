@@ -1,0 +1,274 @@
+---
+title: "PC4-2"
+author: "Jefferson Machaca Chacaltana"
+format: html
+editor: visual
+---
+
+# 1. Introducción
+
+El objetivo es manejar los valores perdidos en la base de datos de diabetes y obtener un conjunto de datos completo, manteniendo lo más posible la estructura estadística original.
+
+# 2. Instalar y cargar los paquetes
+
+```{r}
+install.packages("mice")
+install.packages("ggmice")
+install.packages("gtsummary")
+```
+
+```{r}
+library(mice)
+library(tidyverse)
+library(here)
+library(rio)
+library(ggmice)
+library(gtsummary)
+```
+
+# 3. El dataset para este ejercicio
+
+Para ilustrar el proceso de imputación múltiple de datos utilizaremos la base **diabetes.csv**
+
+Algunas variables presentan valores faltantes.
+
+```{r}
+data_diabetes <- import(here("data", "diabetes.csv"))
+glimpse(data_diabetes)
+```
+
+Un vistazo a los datos:
+
+```{r}
+head(data_diabetes)
+```
+
+# 4. Realizando la imputación de datos
+
+## 4.1 ¿Dónde están los valores perdidos?
+
+Es importante saber en qué variables se encuentran los datos faltantes antes de iniciar la imputación.
+
+```{r}
+colSums(is.na(data_diabetes))
+```
+
+Podemos visualizar el patrón de valores perdidos con **ggmice**.
+
+```{r}
+data_diabetes |>
+  select(
+    num_embarazos,
+    glucosa_2h,
+    presion_sanguinea,
+    pliegue_triceps,
+    insulina_2h,
+    imc,
+    historial_diabetes,
+    edad,
+    diabetes_5a
+  ) |>
+  ggmice::plot_pattern(
+    square = TRUE,
+    rotate = TRUE
+  )
+```
+
+## 4.2 Comparación de participantes con y sin valores perdidos
+
+Como ejemplo, comparamos las características de los pacientes con y sin valores perdidos en **glucosa_2h** e **imc** usando **gtsummary**
+
+```{r}
+tabla_glucosa <- data_diabetes |>
+  select(
+    glucosa_2h,
+    imc,
+    edad,
+    presion_sanguinea,
+    pliegue_triceps,
+    insulina_2h
+  ) |>
+  mutate(missing = factor(
+    is.na(glucosa_2h),
+    levels = c(FALSE, TRUE),
+    labels = c("Sin valores perdidos", "Con valores perdidos")
+  )) |>
+  tbl_summary(
+    by = missing,
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})"
+    )
+  ) |>
+  modify_header(label = "**Variable**") |>
+  modify_caption("Características de los participantes según valores perdidos en glucosa_2h") |>
+  bold_labels()
+
+tabla_imc <- data_diabetes |>
+  select(
+    glucosa_2h,
+    imc,
+    edad,
+    presion_sanguinea,
+    pliegue_triceps,
+    insulina_2h
+  ) |>
+  mutate(missing = factor(
+    is.na(imc),
+    levels = c(FALSE, TRUE),
+    labels = c("Sin valores perdidos", "Con valores perdidos")
+  )) |>
+  tbl_summary(
+    by = missing,
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})"
+    )
+  ) |>
+  modify_header(label = "**Variable**") |>
+  modify_caption("Características de los participantes según valores perdidos en imc") |>
+  bold_labels()
+
+tabla_comp <- tbl_merge(
+  tbls = list(tabla_glucosa, tabla_imc),
+  tab_spanner = c("**Glucosa 2h**", "**IMC**")
+)
+
+tabla_comp
+```
+
+## 4.3 ¿Qué variables incluir en el modelo de imputación?
+
+En el modelo de imputación se deben incluir las variables que se utilizarán en análisis posteriores y aquellas que puedan ayudar a predecir los valores faltantes.\
+Las variables categóricas deben estar codificadas como **factor.**
+
+```{r}
+input_data <- data_diabetes |>
+  select(
+    num_embarazos,
+    glucosa_2h,
+    presion_sanguinea,
+    pliegue_triceps,
+    insulina_2h,
+    imc,
+    historial_diabetes,
+    edad,
+    diabetes_5a
+  ) |>
+  mutate(
+    historial_diabetes = as.factor(historial_diabetes),
+    diabetes_5a = as.factor(diabetes_5a)
+  )
+
+names(input_data)
+```
+
+## 4.4 La función mice() para imputar datos
+
+Ahora utilizamos la función mice() para realizar imputación múltiple.\
+Especificamos:
+
+-   m: número de datasets imputados
+-   maxit: número de iteraciones
+-   method: método de imputación para cada variable
+-   seed: semilla para reproducibilidad
+
+En este ejemplo usaremos imputación por medias condicionales ("pmm") para las variables continuas y "" para las variables que no serán imputadas.
+
+```{r}
+metodos <- c(
+  "pmm",  # num_embarazos
+  "pmm",  # glucosa_2h
+  "pmm",  # presion_sanguinea
+  "pmm",  # pliegue_triceps
+  "pmm",  # insulina_2h
+  "pmm",  # imc
+  "", # historial_diabetes
+  "",  # edad
+  "" # diabetes_5a
+)
+
+set.seed(123)
+data_imputada <- mice(
+  input_data,
+  m = 5,
+  method = metodos,
+  maxit = 5,
+  seed = 123,
+  print = FALSE
+)
+
+data_imputada
+```
+
+# 5. Analizando los datos imputados
+
+Antes de proceder con el modelado estadístico, es fundamental validar la congruencia entre las distribuciones de los datos imputados y los datos observados.
+
+## 5.1 Boxplots por número de imputación
+
+Para la variable **glucosa_2h**:
+
+```{r}
+ggmice(data_imputada, aes(x = .imp, y = glucosa_2h)) +
+  geom_jitter(height = 0, width = 0.25) +
+  geom_boxplot(width = 0.5, size = 1, alpha = 0.55, outlier.shape = NA) +
+  labs(x = "Número de imputación")
+```
+
+Para la variable **imc**:
+
+```{r}
+ggmice(data_imputada, aes(x = .imp, y = imc)) +
+  geom_jitter(height = 0, width = 0.25) +
+  geom_boxplot(width = 0.5, size = 1, alpha = 0.55, outlier.shape = NA) +
+  labs(x = "Número de imputación")
+```
+
+## 5.2 Comparación de proporciones observadas vs imputadas
+
+Como ejemplo, comparamos la variable binaria **diabetes_5a** entre datos observados e imputados.
+
+```{r}
+data_long <- complete(data_imputada, "long", include = TRUE)
+
+data_long <- data_long |>
+  mutate(
+    imputado = .imp > 0,
+    imputado = factor(imputado,
+                      levels = c(FALSE, TRUE),
+                      labels = c("Observado", "Imputado"))
+  )
+
+prop.table(
+  table(data_long$diabetes_5a, data_long$imputado),
+  margin = 2
+)
+```
+
+Idealmente, las proporciones entre categorías deberían ser similares entre datos observados e imputados.
+
+# 6. Procedimientos adicionales luego de la imputación
+
+El uso habitual de la imputación múltiple es ajustar modelos estadísticos usando los datos imputados y combinar los resultados.\
+A continuación se muestra un ejemplo sencillo de regresión logística multivariada utilizando la función **with()** y resumiendo los resultados con **gtsummary.**
+
+```{r}
+modelo_multi <- with(
+  data_imputada,
+  glm(diabetes_5a ~ edad + imc + glucosa_2h + presion_sanguinea,
+      family = binomial(link = "logit"))
+)
+
+tabla_multi <- tbl_regression(
+  modelo_multi,
+  exponentiate = TRUE
+) |>
+  bold_p(t = 0.05) |>
+  modify_header(
+    estimate = "**OR ajustado**",
+    p.value = "**Valor p**"
+  )
+
+tabla_multi
+```
+
+La siguiente tabla resume las estimaciones obtenidas del modelo multivariado tras aplicar el proceso de imputación múltiple.
